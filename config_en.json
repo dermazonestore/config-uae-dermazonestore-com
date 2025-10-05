@@ -2882,7 +2882,7 @@
             }
         ],
         "version": 2,
-        "showLanguage": false,
+        "showLanguage": true,
         "enableOnBoarding": true,
         "showLanguagePopup": false,
         "autoCropImageByDesign": true,
