@@ -1,0 +1,70 @@
+# Copy to each FluxBuilder GitHub config repo as:
+#   .github/workflows/strip-fluxbuilder-id.yml
+#
+# Repos:
+#   dermazonestore/config-uae-dermazonestore-com
+#   dermazonestore/config-dermazone-store-myshopify-com
+#
+# After FluxBuilder pushes config_ar.json / config_en.json, this workflow strips
+# `_id` metadata and commits only when the file content changed.
+
+name: Strip FluxBuilder _id
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - config_ar.json
+      - config_en.json
+
+permissions:
+  contents: write
+
+jobs:
+  strip:
+    runs-on: ubuntu-latest
+    # Avoid loop: skip commits made by this workflow
+    if: github.event.head_commit.message != 'chore: auto-strip FluxBuilder _id from app config JSON'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Strip _id from config JSON
+        run: |
+          python3 <<'PY'
+          import json
+          from pathlib import Path
+
+          def strip(v):
+              if isinstance(v, dict):
+                  return {k: strip(val) for k, val in v.items() if k != "_id"}
+              if isinstance(v, list):
+                  return [strip(x) for x in v]
+              return v
+
+          for name in ("config_ar.json", "config_en.json"):
+              path = Path(name)
+              if not path.is_file():
+                  continue
+              data = json.loads(path.read_text(encoding="utf-8"))
+              cleaned = strip(data)
+              if cleaned != data:
+                  path.write_text(
+                      json.dumps(cleaned, ensure_ascii=False, separators=(",", ":")) + "\n",
+                      encoding="utf-8",
+                  )
+                  print(f"updated {name}")
+              else:
+                  print(f"no _id in {name}")
+          PY
+
+      - name: Commit and push if needed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add config_ar.json config_en.json
+          if git diff --staged --quiet; then
+            echo "Nothing to commit"
+            exit 0
+          fi
+          git commit -m "chore: auto-strip FluxBuilder _id from app config JSON"
+          git push
